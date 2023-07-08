@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 	"go.mozilla.org/sops/v3"
 	"go.mozilla.org/sops/v3/aes"
 	"go.mozilla.org/sops/v3/age"
@@ -38,7 +39,6 @@ import (
 	"go.mozilla.org/sops/v3/stores/json"
 	"go.mozilla.org/sops/v3/version"
 	"google.golang.org/grpc"
-	"gopkg.in/urfave/cli.v1"
 )
 
 var log *logrus.Logger
@@ -189,11 +189,11 @@ func main() {
 				},
 				cli.StringFlag{
 					Name:  "input-type",
-					Usage: "currently json, yaml, dotenv and binary are supported. If not set, sops will use the file's extension to determine the type",
+					Usage: "currently ini, json, yaml, dotenv and binary are supported. If not set, sops will use the file's extension to determine the type",
 				},
 				cli.StringFlag{
 					Name:  "output-type",
-					Usage: "currently json, yaml, dotenv and binary are supported. If not set, sops will use the input file's extension to determine the output format",
+					Usage: "currently ini, json, yaml, dotenv and binary are supported. If not set, sops will use the input file's extension to determine the output format",
 				},
 				cli.StringFlag{
 					Name:  "filename",
@@ -508,6 +508,10 @@ func main() {
 					Name:  "yes, y",
 					Usage: `pre-approve all changes and run non-interactively`,
 				},
+				cli.StringFlag{
+					Name:  "input-type",
+					Usage: "currently ini, json, yaml, dotenv and binary are supported. If not set, sops will use the file's extension to determine the type",
+				},
 			}, keyserviceFlags...),
 			Action: func(c *cli.Context) error {
 				var err error
@@ -529,6 +533,7 @@ func main() {
 					KeyServices: keyservices(c),
 					Interactive: !c.Bool("yes"),
 					ConfigPath:  configPath,
+					InputType:   c.String("input-type"),
 				})
 				if cliErr, ok := err.(*cli.ExitError); ok && cliErr != nil {
 					return cliErr
@@ -551,6 +556,10 @@ func main() {
 		cli.BoolFlag{
 			Name:  "rotate, r",
 			Usage: "generate a new data encryption key and reencrypt all values with the new key",
+		},
+		cli.BoolFlag{
+			Name:  "disable-version-check",
+			Usage: "do not check whether the current version is latest during --version",
 		},
 		cli.StringFlag{
 			Name:   "kms, k",
