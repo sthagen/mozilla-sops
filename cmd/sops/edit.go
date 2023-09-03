@@ -1,26 +1,22 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
-	"os"
-
-	"crypto/md5"
-	exec "golang.org/x/sys/execabs"
-	"io"
-	"strings"
-
 	"bufio"
 	"bytes"
-
+	"crypto/sha256"
+	"fmt"
+	"io"
+	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/google/shlex"
 	"github.com/getsops/sops/v3"
 	"github.com/getsops/sops/v3/cmd/sops/codes"
 	"github.com/getsops/sops/v3/cmd/sops/common"
 	"github.com/getsops/sops/v3/keyservice"
 	"github.com/getsops/sops/v3/version"
+	"github.com/google/shlex"
+	exec "golang.org/x/sys/execabs"
 )
 
 type editOpts struct {
@@ -44,7 +40,7 @@ type editExampleOpts struct {
 }
 
 type runEditorUntilOkOpts struct {
-	TmpFile        *os.File
+	TmpFileName    string
 	OriginalHash   []byte
 	InputStore     sops.Store
 	ShowMasterKeys bool
@@ -109,7 +105,7 @@ func edit(opts editOpts) ([]byte, error) {
 
 func editTree(opts editOpts, tree *sops.Tree, dataKey []byte) ([]byte, error) {
 	// Create temporary file for editing
-	tmpdir, err := ioutil.TempDir("", "")
+	tmpdir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return nil, common.NewExitError(fmt.Sprintf("Could not create temporary directory: %s", err), codes.CouldNotWriteOutputFile)
 	}
@@ -119,6 +115,10 @@ func editTree(opts editOpts, tree *sops.Tree, dataKey []byte) ([]byte, error) {
 	if err != nil {
 		return nil, common.NewExitError(fmt.Sprintf("Could not create temporary file: %s", err), codes.CouldNotWriteOutputFile)
 	}
+	// Ensure that in any case, the temporary file is always closed.
+	defer tmpfile.Close()
+
+	tmpfileName := tmpfile.Name()
 
 	// Write to temporary file
 	var out []byte
@@ -135,18 +135,23 @@ func editTree(opts editOpts, tree *sops.Tree, dataKey []byte) ([]byte, error) {
 		return nil, common.NewExitError(fmt.Sprintf("Could not write output file: %s", err), codes.CouldNotWriteOutputFile)
 	}
 
-	// Close temporary file, since Windows won't delete the file unless it's closed beforehand
-	defer tmpfile.Close()
-
 	// Compute file hash to detect if the file has been edited
-	origHash, err := hashFile(tmpfile.Name())
+	origHash, err := hashFile(tmpfileName)
 	if err != nil {
 		return nil, common.NewExitError(fmt.Sprintf("Could not hash file: %s", err), codes.CouldNotReadInputFile)
 	}
 
+	// Close the temporary file, so that an editor can open it.
+	// We need to do this because some editors (e.g. VSCode) will refuse to
+	// open a file on Windows due to the Go standard library not opening
+	// files with shared delete access.
+	if err := tmpfile.Close(); err != nil {
+		return nil, err
+	}
+
 	// Let the user edit the file
 	err = runEditorUntilOk(runEditorUntilOkOpts{
-		InputStore: opts.InputStore, OriginalHash: origHash, TmpFile: tmpfile,
+		InputStore: opts.InputStore, OriginalHash: origHash, TmpFileName: tmpfileName,
 		ShowMasterKeys: opts.ShowMasterKeys, Tree: tree})
 	if err != nil {
 		return nil, err
@@ -170,18 +175,18 @@ func editTree(opts editOpts, tree *sops.Tree, dataKey []byte) ([]byte, error) {
 
 func runEditorUntilOk(opts runEditorUntilOkOpts) error {
 	for {
-		err := runEditor(opts.TmpFile.Name())
+		err := runEditor(opts.TmpFileName)
 		if err != nil {
 			return common.NewExitError(fmt.Sprintf("Could not run editor: %s", err), codes.NoEditorFound)
 		}
-		newHash, err := hashFile(opts.TmpFile.Name())
+		newHash, err := hashFile(opts.TmpFileName)
 		if err != nil {
 			return common.NewExitError(fmt.Sprintf("Could not hash file: %s", err), codes.CouldNotReadInputFile)
 		}
 		if bytes.Equal(newHash, opts.OriginalHash) {
 			return common.NewExitError("File has not changed, exiting.", codes.FileHasNotBeenModified)
 		}
-		edited, err := ioutil.ReadFile(opts.TmpFile.Name())
+		edited, err := os.ReadFile(opts.TmpFileName)
 		if err != nil {
 			return common.NewExitError(fmt.Sprintf("Could not read edited file: %s", err), codes.CouldNotReadInputFile)
 		}
@@ -240,7 +245,7 @@ func hashFile(filePath string) ([]byte, error) {
 		return result, err
 	}
 	defer file.Close()
-	hash := md5.New()
+	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
 		return result, err
 	}

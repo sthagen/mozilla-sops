@@ -46,12 +46,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/getsops/sops/v3/audit"
 	"github.com/getsops/sops/v3/keys"
 	"github.com/getsops/sops/v3/keyservice"
 	"github.com/getsops/sops/v3/logging"
 	"github.com/getsops/sops/v3/shamir"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
@@ -148,10 +148,11 @@ func set(branch interface{}, path []interface{}, value interface{}) interface{} 
 			}
 		}
 		// Not found, need to add the next path entry to the branch
-		if len(path) == 1 {
-			return append(branch, TreeItem{Key: path[0], Value: value})
+		value := valueFromPathAndLeaf(path, value)
+		if newBranch, ok := value.(TreeBranch); ok && len(newBranch) > 0 {
+			return append(branch, newBranch[0])
 		}
-		return valueFromPathAndLeaf(path, value)
+		return branch
 	case []interface{}:
 		position := path[0].(int)
 		if len(path) == 1 {
@@ -726,7 +727,11 @@ func ToBytes(in interface{}) ([]byte, error) {
 	case float64:
 		return []byte(strconv.FormatFloat(in, 'f', -1, 64)), nil
 	case bool:
-		return []byte(strings.Title(strconv.FormatBool(in))), nil
+		boolB := []byte("True")
+		if !in {
+			boolB = []byte("False")
+		}
+		return boolB, nil
 	case []byte:
 		return in, nil
 	case Comment:
