@@ -3,7 +3,7 @@ module github.com/getsops/sops/v3
 go 1.19
 
 require (
-	cloud.google.com/go/kms v1.15.3
+	cloud.google.com/go/kms v1.15.4
 	cloud.google.com/go/storage v1.33.0
 	filippo.io/age v1.1.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.8.0
@@ -11,9 +11,9 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.0.1
 	github.com/ProtonMail/go-crypto v0.0.0-20230923063757-afb1ddc0824c
 	github.com/aws/aws-sdk-go-v2 v1.21.2
-	github.com/aws/aws-sdk-go-v2/config v1.19.0
+	github.com/aws/aws-sdk-go-v2/config v1.19.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.43
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.91
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.92
 	github.com/aws/aws-sdk-go-v2/service/kms v1.24.7
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.40.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.23.2
@@ -76,7 +76,7 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/cli v20.10.17+incompatible // indirect
-	github.com/docker/docker v20.10.24+incompatible // indirect
+	github.com/docker/docker v24.0.7+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.0 // indirect
