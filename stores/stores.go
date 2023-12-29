@@ -23,6 +23,11 @@ import (
 	"github.com/getsops/sops/v3/pgp"
 )
 
+const (
+	// SopsMetadataKey is the key used to store SOPS metadata at in SOPS encrypted files.
+	SopsMetadataKey = "sops"
+)
+
 // SopsFile is a struct used by the stores as a helper to unmarshal the SOPS metadata
 type SopsFile struct {
 	// Metadata is a pointer so we can easily tell when the field is not present
@@ -505,4 +510,14 @@ var ExampleFlatTree = sops.Tree{
 			},
 		},
 	},
+}
+
+// HasSopsTopLevelKey returns true if the given branch has a top-level key called "sops".
+func HasSopsTopLevelKey(branch sops.TreeBranch) bool {
+	for _, b := range branch {
+		if b.Key == SopsMetadataKey {
+			return true
+		}
+	}
+	return false
 }

@@ -12,7 +12,7 @@ import (
 )
 
 // SopsPrefix is the prefix for all metadatada entry keys
-const SopsPrefix = "sops_"
+const SopsPrefix = stores.SopsMetadataKey + "_"
 
 // Store handles storage of dotenv data
 type Store struct {
@@ -49,7 +49,10 @@ func (store *Store) LoadEncryptedFile(in []byte) (sops.Tree, error) {
 	}
 
 	stores.DecodeNewLines(mdMap)
-	stores.DecodeNonStrings(mdMap)
+	err = stores.DecodeNonStrings(mdMap)
+	if err != nil {
+		return sops.Tree{}, err
+	}
 	metadata, err := stores.UnflattenMetadata(mdMap)
 	if err != nil {
 		return sops.Tree{}, err
@@ -169,6 +172,18 @@ func isComplexValue(v interface{}) bool {
 		return true
 	case sops.TreeBranch:
 		return true
+	}
+	return false
+}
+
+// HasSopsTopLevelKey checks whether a top-level "sops" key exists.
+func (store *Store) HasSopsTopLevelKey(branch sops.TreeBranch) bool {
+	for _, b := range branch {
+		if key, ok := b.Key.(string); ok {
+			if strings.HasPrefix(key, SopsPrefix) {
+				return true
+			}
+		}
 	}
 	return false
 }
