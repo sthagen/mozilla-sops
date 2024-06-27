@@ -94,6 +94,7 @@ type configFile struct {
 }
 
 type keyGroup struct {
+	Merge   []keyGroup
 	KMS     []kmsKey
 	GCPKMS  []gcpKmsKey  `yaml:"gcp_kms"`
 	AzureKV []azureKVKey `yaml:"azure_keyvault"`
@@ -134,21 +135,23 @@ type destinationRule struct {
 }
 
 type creationRule struct {
-	PathRegex         string `yaml:"path_regex"`
-	KMS               string
-	AwsProfile        string `yaml:"aws_profile"`
-	Age               string `yaml:"age"`
-	PGP               string
-	GCPKMS            string     `yaml:"gcp_kms"`
-	AzureKeyVault     string     `yaml:"azure_keyvault"`
-	VaultURI          string     `yaml:"hc_vault_transit_uri"`
-	KeyGroups         []keyGroup `yaml:"key_groups"`
-	ShamirThreshold   int        `yaml:"shamir_threshold"`
-	UnencryptedSuffix string     `yaml:"unencrypted_suffix"`
-	EncryptedSuffix   string     `yaml:"encrypted_suffix"`
-	UnencryptedRegex  string     `yaml:"unencrypted_regex"`
-	EncryptedRegex    string     `yaml:"encrypted_regex"`
-	MACOnlyEncrypted  bool       `yaml:"mac_only_encrypted"`
+	PathRegex               string `yaml:"path_regex"`
+	KMS                     string
+	AwsProfile              string `yaml:"aws_profile"`
+	Age                     string `yaml:"age"`
+	PGP                     string
+	GCPKMS                  string     `yaml:"gcp_kms"`
+	AzureKeyVault           string     `yaml:"azure_keyvault"`
+	VaultURI                string     `yaml:"hc_vault_transit_uri"`
+	KeyGroups               []keyGroup `yaml:"key_groups"`
+	ShamirThreshold         int        `yaml:"shamir_threshold"`
+	UnencryptedSuffix       string     `yaml:"unencrypted_suffix"`
+	EncryptedSuffix         string     `yaml:"encrypted_suffix"`
+	UnencryptedRegex        string     `yaml:"unencrypted_regex"`
+	EncryptedRegex          string     `yaml:"encrypted_regex"`
+	UnencryptedCommentRegex string     `yaml:"unencrypted_comment_regex"`
+	EncryptedCommentRegex   string     `yaml:"encrypted_comment_regex"`
+	MACOnlyEncrypted        bool       `yaml:"mac_only_encrypted"`
 }
 
 func NewStoresConfig() *StoresConfig {
@@ -169,49 +172,85 @@ func (f *configFile) load(bytes []byte) error {
 
 // Config is the configuration for a given SOPS file
 type Config struct {
-	KeyGroups         []sops.KeyGroup
-	ShamirThreshold   int
-	UnencryptedSuffix string
-	EncryptedSuffix   string
-	UnencryptedRegex  string
-	EncryptedRegex    string
-	MACOnlyEncrypted  bool
-	Destination       publish.Destination
-	OmitExtensions    bool
+	KeyGroups               []sops.KeyGroup
+	ShamirThreshold         int
+	UnencryptedSuffix       string
+	EncryptedSuffix         string
+	UnencryptedRegex        string
+	EncryptedRegex          string
+	UnencryptedCommentRegex string
+	EncryptedCommentRegex   string
+	MACOnlyEncrypted        bool
+	Destination             publish.Destination
+	OmitExtensions          bool
+}
+
+func deduplicateKeygroup(group sops.KeyGroup) sops.KeyGroup {
+	var deduplicatedKeygroup sops.KeyGroup
+
+	unique := make(map[string]bool)
+	for _, v := range group {
+		key := fmt.Sprintf("%T/%v", v, v.ToString())
+		if _, ok := unique[key]; ok {
+			// key already contained, therefore not unique
+			continue
+		}
+
+		deduplicatedKeygroup = append(deduplicatedKeygroup, v)
+		unique[key] = true
+	}
+
+	return deduplicatedKeygroup
+}
+
+func extractMasterKeys(group keyGroup) (sops.KeyGroup, error) {
+	var keyGroup sops.KeyGroup
+	for _, k := range group.Merge {
+		subKeyGroup, err := extractMasterKeys(k)
+		if err != nil {
+			return nil, err
+		}
+		keyGroup = append(keyGroup, subKeyGroup...)
+	}
+
+	for _, k := range group.Age {
+		keys, err := age.MasterKeysFromRecipients(k)
+		if err != nil {
+			return nil, err
+		}
+		for _, key := range keys {
+			keyGroup = append(keyGroup, key)
+		}
+	}
+	for _, k := range group.PGP {
+		keyGroup = append(keyGroup, pgp.NewMasterKeyFromFingerprint(k))
+	}
+	for _, k := range group.KMS {
+		keyGroup = append(keyGroup, kms.NewMasterKeyWithProfile(k.Arn, k.Role, k.Context, k.AwsProfile))
+	}
+	for _, k := range group.GCPKMS {
+		keyGroup = append(keyGroup, gcpkms.NewMasterKeyFromResourceID(k.ResourceID))
+	}
+	for _, k := range group.AzureKV {
+		keyGroup = append(keyGroup, azkv.NewMasterKey(k.VaultURL, k.Key, k.Version))
+	}
+	for _, k := range group.Vault {
+		if masterKey, err := hcvault.NewMasterKeyFromURI(k); err == nil {
+			keyGroup = append(keyGroup, masterKey)
+		} else {
+			return nil, err
+		}
+	}
+	return deduplicateKeygroup(keyGroup), nil
 }
 
 func getKeyGroupsFromCreationRule(cRule *creationRule, kmsEncryptionContext map[string]*string) ([]sops.KeyGroup, error) {
 	var groups []sops.KeyGroup
 	if len(cRule.KeyGroups) > 0 {
 		for _, group := range cRule.KeyGroups {
-			var keyGroup sops.KeyGroup
-			for _, k := range group.Age {
-				keys, err := age.MasterKeysFromRecipients(k)
-				if err != nil {
-					return nil, err
-				}
-				for _, key := range keys {
-					keyGroup = append(keyGroup, key)
-				}
-			}
-			for _, k := range group.PGP {
-				keyGroup = append(keyGroup, pgp.NewMasterKeyFromFingerprint(k))
-			}
-			for _, k := range group.KMS {
-				keyGroup = append(keyGroup, kms.NewMasterKeyWithProfile(k.Arn, k.Role, k.Context, k.AwsProfile))
-			}
-			for _, k := range group.GCPKMS {
-				keyGroup = append(keyGroup, gcpkms.NewMasterKeyFromResourceID(k.ResourceID))
-			}
-			for _, k := range group.AzureKV {
-				keyGroup = append(keyGroup, azkv.NewMasterKey(k.VaultURL, k.Key, k.Version))
-			}
-			for _, k := range group.Vault {
-				if masterKey, err := hcvault.NewMasterKeyFromURI(k); err == nil {
-					keyGroup = append(keyGroup, masterKey)
-				} else {
-					return nil, err
-				}
+			keyGroup, err := extractMasterKeys(group)
+			if err != nil {
+				return nil, err
 			}
 			groups = append(groups, keyGroup)
 		}
@@ -283,9 +322,15 @@ func configFromRule(rule *creationRule, kmsEncryptionContext map[string]*string)
 	if rule.EncryptedRegex != "" {
 		cryptRuleCount++
 	}
+	if rule.UnencryptedCommentRegex != "" {
+		cryptRuleCount++
+	}
+	if rule.EncryptedCommentRegex != "" {
+		cryptRuleCount++
+	}
 
 	if cryptRuleCount > 1 {
-		return nil, fmt.Errorf("error loading config: cannot use more than one of encrypted_suffix, unencrypted_suffix, encrypted_regex, or unencrypted_regex for the same rule")
+		return nil, fmt.Errorf("error loading config: cannot use more than one of encrypted_suffix, unencrypted_suffix, encrypted_regex, unencrypted_regex, encrypted_comment_regex, or unencrypted_comment_regex for the same rule")
 	}
 
 	groups, err := getKeyGroupsFromCreationRule(rule, kmsEncryptionContext)
@@ -294,13 +339,15 @@ func configFromRule(rule *creationRule, kmsEncryptionContext map[string]*string)
 	}
 
 	return &Config{
-		KeyGroups:         groups,
-		ShamirThreshold:   rule.ShamirThreshold,
-		UnencryptedSuffix: rule.UnencryptedSuffix,
-		EncryptedSuffix:   rule.EncryptedSuffix,
-		UnencryptedRegex:  rule.UnencryptedRegex,
-		EncryptedRegex:    rule.EncryptedRegex,
-		MACOnlyEncrypted:  rule.MACOnlyEncrypted,
+		KeyGroups:               groups,
+		ShamirThreshold:         rule.ShamirThreshold,
+		UnencryptedSuffix:       rule.UnencryptedSuffix,
+		EncryptedSuffix:         rule.EncryptedSuffix,
+		UnencryptedRegex:        rule.UnencryptedRegex,
+		EncryptedRegex:          rule.EncryptedRegex,
+		UnencryptedCommentRegex: rule.UnencryptedCommentRegex,
+		EncryptedCommentRegex:   rule.EncryptedCommentRegex,
+		MACOnlyEncrypted:        rule.MACOnlyEncrypted,
 	}, nil
 }
 
