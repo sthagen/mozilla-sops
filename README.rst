@@ -106,7 +106,8 @@ encryption/decryption transparently and open the cleartext file in an editor
     please wait while an encryption key is being generated and stored in a secure fashion
     file written to mynewtestfile.yaml
 
-Editing will happen in whatever ``$EDITOR`` is set to, or, if it's not set, in vim.
+Editing will happen in whatever ``$SOPS_EDITOR`` or ``$EDITOR`` is set to, or, if it's
+not set, in vim, nano, or vi.
 Keep in mind that SOPS will wait for the editor to exit, and then try to reencrypt
 the file. Some GUI editors (atom, sublime) spawn a child process and then exit
 immediately. They usually have an option to wait for the main editor window to be
@@ -1068,6 +1069,11 @@ written to disk.
     $ echo your password: $database_password
     your password:
 
+If you want process signals to be sent to the command, for example if you are
+running ``exec-env`` to launch a server and your server handles SIGTERM, then the
+``--same-process`` flag can be used to instruct ``sops`` to start your command in
+the same process instead of a child process. This uses the ``execve`` system call
+and is supported on Unix-like systems.
 
 If the command you want to run only operates on files, you can use ``exec-file``
 instead. By default, SOPS will use a FIFO to pass the contents of the

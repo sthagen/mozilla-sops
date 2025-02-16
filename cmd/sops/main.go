@@ -137,7 +137,8 @@ func main() {
 
    To use a different GPG binary than the one in your PATH, set SOPS_GPG_EXEC.
 
-   To select a different editor than the default (vim), set EDITOR.
+   To select a different editor than the default (vim), set SOPS_EDITOR or
+   EDITOR.
 
    Note that flags must always be provided before the filename to operate on.
    Otherwise, they will be ignored.
@@ -161,6 +162,10 @@ func main() {
 				cli.StringFlag{
 					Name:  "user",
 					Usage: "the user to run the command as",
+				},
+				cli.BoolFlag{
+					Name:  "same-process",
+					Usage: "run command in the current process instead of in a child process",
 				},
 			}, keyserviceFlags...),
 			Action: func(c *cli.Context) error {
@@ -194,6 +199,10 @@ func main() {
 
 				if c.Bool("background") {
 					log.Warn("exec-env's --background option is deprecated and will be removed in a future version of sops")
+
+					if c.Bool("same-process") {
+						return common.NewExitError("Error: The --same-process flag cannot be used with --background", codes.ErrorConflictingParameters)
+					}
 				}
 
 				tree, err := decryptTree(opts)
@@ -224,12 +233,13 @@ func main() {
 				}
 
 				if err := exec.ExecWithEnv(exec.ExecOpts{
-					Command:    command,
-					Plaintext:  []byte{},
-					Background: c.Bool("background"),
-					Pristine:   c.Bool("pristine"),
-					User:       c.String("user"),
-					Env:        env,
+					Command:     command,
+					Plaintext:   []byte{},
+					Background:  c.Bool("background"),
+					Pristine:    c.Bool("pristine"),
+					User:        c.String("user"),
+					SameProcess: c.Bool("same-process"),
+					Env:         env,
 				}); err != nil {
 					return toExitError(err)
 				}
@@ -446,7 +456,12 @@ func main() {
 			Name:      "filestatus",
 			Usage:     "check the status of the file, returning encryption status",
 			ArgsUsage: `file`,
-			Flags:     []cli.Flag{},
+			Flags:     []cli.Flag{
+				cli.StringFlag{
+					Name:  "input-type",
+					Usage: "currently ini, json, yaml, dotenv and binary are supported. If not set, sops will use the file's extension to determine the type",
+				},
+			},
 			Action: func(c *cli.Context) error {
 				if c.NArg() < 1 {
 					return common.NewExitError("Error: no file specified", codes.NoFileSpecified)
@@ -1517,8 +1532,9 @@ func main() {
 			Usage: "generate a new data encryption key and reencrypt all values with the new key",
 		},
 		cli.BoolFlag{
-			Name:  "disable-version-check",
-			Usage: "do not check whether the current version is latest during --version",
+			Name:   "disable-version-check",
+			Usage:  "do not check whether the current version is latest during --version",
+			EnvVar: "SOPS_DISABLE_VERSION_CHECK",
 		},
 		cli.StringFlag{
 			Name:   "kms, k",
