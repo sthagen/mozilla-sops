@@ -462,7 +462,7 @@ func main() {
 			Name:      "filestatus",
 			Usage:     "check the status of the file, returning encryption status",
 			ArgsUsage: `file`,
-			Flags:     []cli.Flag{
+			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "input-type",
 					Usage: "currently ini, json, yaml, dotenv and binary are supported. If not set, sops will use the file's extension to determine the type",
@@ -1583,6 +1583,10 @@ func main() {
 			Usage:  "do not check whether the current version is latest during --version",
 			EnvVar: "SOPS_DISABLE_VERSION_CHECK",
 		},
+		cli.BoolFlag{
+			Name:  "check-for-updates",
+			Usage: "do check whether the current version is latest during --version",
+		},
 		cli.StringFlag{
 			Name:   "kms, k",
 			Usage:  "comma separated list of KMS ARNs",
@@ -1718,8 +1722,8 @@ func main() {
 			Usage: "set the encrypted comment suffix. When specified, only keys that have comment matching the regex will be encrypted.",
 		},
 		cli.StringFlag{
-			Name:  "config",
-			Usage: "path to sops' config file. If set, sops will not search for the config file recursively.",
+			Name:   "config",
+			Usage:  "path to sops' config file. If set, sops will not search for the config file recursively.",
 			EnvVar: "SOPS_CONFIG",
 		},
 		cli.StringFlag{
