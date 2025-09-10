@@ -378,6 +378,11 @@ a key. This has the following form::
 
     https://${VAULT_URL}/keys/${KEY_NAME}/${KEY_VERSION}
 
+You can omit the version, and have just a trailing slash, and this will use
+whatever the latest version of the key is::
+
+    https://${VAULT_URL}/keys/${KEY_NAME}/
+
 To create a Key Vault and assign your service principal permissions on it
 from the commandline:
 
@@ -400,6 +405,10 @@ from the commandline:
 Now you can encrypt a file using::
 
     $ sops encrypt --azure-kv https://sops.vault.azure.net/keys/sops-key/some-string test.yaml > test.enc.yaml
+
+or, without the version::
+
+    $ sops encrypt --azure-kv https://sops.vault.azure.net/keys/sops-key/ test.yaml > test.enc.yaml
 
 And decrypt it using::
 
@@ -1558,10 +1567,10 @@ You can also provide the value from a file or stdin:
 
     # Provide the value from a file
     $ echo '{"uid1":null,"uid2":1000,"uid3":["bob"]}' > /tmp/example-value
-    $ sops set ~/git/svc/sops/example.yaml --value-file '["an_array"][1]' /tmp/example-value
+    $ sops set --value-file ~/git/svc/sops/example.yaml '["an_array"][1]' /tmp/example-value
 
     # Provide the value from stdin
-    $ echo '{"uid1":null,"uid2":1000,"uid3":["bob"]}' | sops set ~/git/svc/sops/example.yaml --value-stdin '["an_array"][1]'
+    $ echo '{"uid1":null,"uid2":1000,"uid3":["bob"]}' | sops set --value-stdin ~/git/svc/sops/example.yaml '["an_array"][1]'
 
 Unset a sub-part in a document tree
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
