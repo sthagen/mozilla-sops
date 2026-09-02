@@ -169,7 +169,7 @@ jobs:
       id-token: write # For creating OIDC tokens for signing.
       contents: write # For adding assets to a release.
 
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       base64-subjects: "${{ needs.combine-subjects.outputs.all-subjects }}"
       upload-assets: true
@@ -186,7 +186,7 @@ jobs:
     strategy:
       matrix: ${{ fromJSON(needs.release.outputs.container-subjects) }}
 
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       image: ghcr.io/${{ matrix.image }}
       digest: ${{ matrix.digest }}
@@ -205,7 +205,7 @@ jobs:
     strategy:
       matrix: ${{ fromJSON(needs.release.outputs.container-subjects) }}
 
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       image: quay.io/${{ matrix.image }}
       digest: ${{ matrix.digest }}
